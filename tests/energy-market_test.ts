@@ -8,7 +8,7 @@ import {
 import { assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
 
 Clarinet.test({
-    name: "Test energy listing and trading workflow",
+    name: "Test flexible energy listing workflow with metrics",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
         const seller = accounts.get('wallet_1')!;
@@ -22,30 +22,41 @@ Clarinet.test({
         ]);
         block.receipts[0].result.expectOk();
         
-        // List energy for sale
+        // List energy for sale with 100 block duration
         block = chain.mineBlock([
             Tx.contractCall('energy-market', 'list-energy', [
                 types.uint(500),
-                types.uint(10)
+                types.uint(10),
+                types.uint(100)
             ], seller.address)
         ]);
-        block.receipts[0].result.expectOk();
+        const listingId = block.receipts[0].result.expectOk();
         
         // Buy energy
         block = chain.mineBlock([
             Tx.contractCall('energy-market', 'buy-energy', [
                 types.principal(seller.address),
+                listingId,
                 types.uint(200)
             ], buyer.address)
         ]);
         block.receipts[0].result.expectOk();
         
-        // Check balances
+        // Check trading metrics
         block = chain.mineBlock([
-            Tx.contractCall('energy-market', 'get-energy-balance', [
-                types.principal(buyer.address)
-            ], buyer.address)
+            Tx.contractCall('energy-market', 'get-user-metrics', [
+                types.principal(seller.address)
+            ], seller.address)
         ]);
-        block.receipts[0].result.expectSome().assertEquals(types.uint(200));
+        const sellerMetrics = block.receipts[0].result.expectSome();
+        assertEquals(sellerMetrics['total-sold'], types.uint(200));
+        
+        // Cancel remaining listing
+        block = chain.mineBlock([
+            Tx.contractCall('energy-market', 'cancel-listing', [
+                listingId
+            ], seller.address)
+        ]);
+        block.receipts[0].result.expectOk();
     }
 });
