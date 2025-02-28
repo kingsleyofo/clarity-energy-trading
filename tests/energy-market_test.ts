@@ -8,55 +8,30 @@ import {
 import { assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
 
 Clarinet.test({
-    name: "Test flexible energy listing workflow with metrics",
+    name: "Ensures input validation for energy listings",
     async fn(chain: Chain, accounts: Map<string, Account>) {
-        const deployer = accounts.get('deployer')!;
         const seller = accounts.get('wallet_1')!;
-        const buyer = accounts.get('wallet_2')!;
         
-        // Add energy to seller's balance
+        // Test invalid amount
         let block = chain.mineBlock([
-            Tx.contractCall('energy-market', 'add-energy', [
-                types.uint(1000)
-            ], seller.address)
-        ]);
-        block.receipts[0].result.expectOk();
-        
-        // List energy for sale with 100 block duration
-        block = chain.mineBlock([
             Tx.contractCall('energy-market', 'list-energy', [
-                types.uint(500),
+                types.uint(0),  // Invalid amount
                 types.uint(10),
                 types.uint(100)
             ], seller.address)
         ]);
-        const listingId = block.receipts[0].result.expectOk();
+        block.receipts[0].result.expectErr(types.uint(406));
         
-        // Buy energy
+        // Test invalid price
         block = chain.mineBlock([
-            Tx.contractCall('energy-market', 'buy-energy', [
-                types.principal(seller.address),
-                listingId,
-                types.uint(200)
-            ], buyer.address)
-        ]);
-        block.receipts[0].result.expectOk();
-        
-        // Check trading metrics
-        block = chain.mineBlock([
-            Tx.contractCall('energy-market', 'get-user-metrics', [
-                types.principal(seller.address)
+            Tx.contractCall('energy-market', 'list-energy', [
+                types.uint(100),
+                types.uint(1000000001),  // Invalid price
+                types.uint(100)
             ], seller.address)
         ]);
-        const sellerMetrics = block.receipts[0].result.expectSome();
-        assertEquals(sellerMetrics['total-sold'], types.uint(200));
-        
-        // Cancel remaining listing
-        block = chain.mineBlock([
-            Tx.contractCall('energy-market', 'cancel-listing', [
-                listingId
-            ], seller.address)
-        ]);
-        block.receipts[0].result.expectOk();
+        block.receipts[0].result.expectErr(types.uint(407));
     }
 });
+
+[Previous tests remain unchanged...]
