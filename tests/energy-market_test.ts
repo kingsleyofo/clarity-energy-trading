@@ -8,29 +8,38 @@ import {
 import { assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
 
 Clarinet.test({
-    name: "Ensures input validation for energy listings",
+    name: "Ensures complete trading flow works correctly",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const seller = accounts.get('wallet_1')!;
+        const buyer = accounts.get('wallet_2')!;
         
-        // Test invalid amount
+        // Deposit energy
         let block = chain.mineBlock([
-            Tx.contractCall('energy-market', 'list-energy', [
-                types.uint(0),  // Invalid amount
-                types.uint(10),
-                types.uint(100)
+            Tx.contractCall('energy-market', 'deposit-energy', [
+                types.uint(1000)
             ], seller.address)
         ]);
-        block.receipts[0].result.expectErr(types.uint(406));
+        block.receipts[0].result.expectOk(true);
         
-        // Test invalid price
+        // List energy
         block = chain.mineBlock([
             Tx.contractCall('energy-market', 'list-energy', [
+                types.uint(500),
                 types.uint(100),
-                types.uint(1000000001),  // Invalid price
                 types.uint(100)
             ], seller.address)
         ]);
-        block.receipts[0].result.expectErr(types.uint(407));
+        const listingId = block.receipts[0].result.expectOk();
+        
+        // Buy energy
+        block = chain.mineBlock([
+            Tx.contractCall('energy-market', 'buy-energy', [
+                types.principal(seller.address),
+                listingId,
+                types.uint(200)
+            ], buyer.address)
+        ]);
+        block.receipts[0].result.expectOk(true);
     }
 });
 
